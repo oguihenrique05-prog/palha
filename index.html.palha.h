@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+   <title>Palha Italiana - Venda Todo Dia</title>
+  
+   <link rel="preconnect" href="https://fonts.googleapis.com">
+   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+   
+   <link rel="preload" href="paleta1.webp" as="image" fetchpriority="high">
+
+   <script src="https://cdn.tailwindcss.com"></script>
+  
+   <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;0,900;1,700;1,900&family=Playfair+Display:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
+
+   <script>
+   (function () {
+     "use strict";
+
+     var API_BASE = "https://brain-saas.vercel.app";
+     var PIXEL_PUBLIC_KEY = "px_D7XBCpYqp6dO4nTz";
+     var prefix = ["https://lastlink.com","https://kirvano.com","https://pay.kirvano.com","https://checkout.kirvano.com","pay.yampi.com.br"];
+     var TRACK_URL = API_BASE.replace(/\/$/, "") + "/api/track";
+
+     function getCookie(name) {
+       var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+       return match ? decodeURIComponent(match[2]) : null;
+     }
+
+     function setCookie(name, value, days) {
+       var d = new Date();
+       d.setTime(d.getTime() + (days || 365) * 24 * 60 * 60 * 1000);
+       document.cookie =
+         name + "=" + encodeURIComponent(value) +
+         "; path=/; expires=" + d.toUTCString() + "; SameSite=Lax";
+     }
+
+     function uuid() {
+       if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+       return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+         var r = (Math.random() * 16) | 0;
+         var v = c === "x" ? r : (r & 0x3) | 0x8;
+         return v.toString(16);
+       });
+     }
+
+     function getOrCreateSid() {
+       var sid = getCookie("mcapi_sid");
+       if (!sid) {
+         sid = uuid();
+         setCookie("mcapi_sid", sid, 365);
+       }
+       return sid;
+     }
+
+     function getQueryParam(name) {
+       try {
+         return new URL(location.href).searchParams.get(name);
+       } catch (e) {
+         return null;
+       }
+     }
+
+     function ensureFbp() {
+       var existing = getCookie("_fbp");
+       if (existing) return existing;
+
+       var fbp = "fb.1." + Date.now() + "." + Math.floor(Math.random() * 1e16);
+       setCookie("_fbp", fbp, 90);
+       return fbp;
+     }
+
+     function ensureFbc() {
+       var existing = getCookie("_fbc");
+       if (existing) return existing;
+
+       var fbclid = getQueryParam("fbclid");
+       if (!fbclid) return null;
+
+       var fbc = "fb.1." + Date.now() + "." + fbclid;
+       setCookie("_fbc", fbc, 90);
+       return fbc;
+     }
+
+     function safeResolveUrl(href) {
+       var resolved = href;
+       try { resolved = new URL(href, location.href).href; } catch (e) {}
+       return resolved;
+     }
+
+     function looksLikeCheckout(url) {
+       url = String(url || "");
+       for (var j = 0; j < prefix.length; j++) {
+         if (url.indexOf(prefix[j]) !== -1) return true;
+       }
+       var low = url.toLowerCase();
+       if (low.indexOf("checkout") !== -1 || low.indexOf("pay") !== -1 || low.indexOf("payment") !== -1) return true;
+       return false;
+     }
+
+     function buildUtms() {
+       var r = new URL(location.href);
+       var sid = getOrCreateSid();
+       var out = {};
+
+       out.utm_source = r.searchParams.get("utm_source") || "direto";
+       out.utm_term = "sid:" + sid;
+
+       if (r.searchParams.get("utm_medium")) out.utm_medium = r.searchParams.get("utm_medium");
+       if (r.searchParams.get("utm_campaign")) out.utm_campaign = r.searchParams.get("utm_campaign");
+       if (r.searchParams.get("utm_content")) out.utm_content = r.searchParams.get("utm_content");
+       if (r.searchParams.get("fbclid")) out.fbclid = r.searchParams.get("fbclid");
+
+       return out;
+     }
+
+     function applyUtmsToUrl(resolvedUrl, utms, forceUtmTerm) {
+       try {
+         var u = new URL(resolvedUrl);
+
+         for (var key in utms) {
+           if (!utms.hasOwnProperty(key)) continue;
+           if (!utms[key]) continue;
+
+           if (key === "utm_term") {
+             if (forceUtmTerm) u.searchParams.set("utm_term", utms.utm_term);
+             else if (!u.searchParams.get("utm_term")) u.searchParams.set("utm_term", utms.utm_term);
+             continue;
+           }
+
+           if (!u.searchParams.get(key)) u.searchParams.set(key, utms[key]);
+         }
+
+         return u.toString();
+       } catch (e) {
+         return resolvedUrl;
+       }
+     }
+
+     function sendEvent(payload) {
+       try {
+         if (navigator.sendBeacon) {
+           var blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+           navigator.sendBeacon(TRACK_URL, blob);
+           return;
+         }
+       } catch (e) {}
+
+       fetch(TRACK_URL, {
+         method: "POST",
+         mode: "cors",
+         headers: { "Content-Type": "application/json" },
+         body: JSON.stringify(payload),
+         keepalive: true
+       }).catch(function(){});
+     }
+
+     function postEvent(eventName) {
+       var sid = getOrCreateSid();
+
+       var payload = {
+         pixel_id: PIXEL_PUBLIC_KEY,
+         sid: sid,
+         event: eventName,
+         event_id: eventName + "_" + sid + "_" + Date.now(),
+         url: location.href,
+         utm: buildUtms(),
+         fbp: ensureFbp(),
+         fbc: ensureFbc()
+       };
+
+       sendEvent(payload);
+     }
+
+     function updateLinks() {
+       var utms = buildUtms();
+       var anchors = document.querySelectorAll("a[href]");
+       for (var i = 0; i < anchors.length; i++) {
+         var a = anchors[i];
+         var href = a.getAttribute("href") || "";
+         if (!href) continue;
+
+         var resolved = safeResolveUrl(href);
+         if (!looksLikeCheckout(resolved)) continue;
+
+         a.href = applyUtmsToUrl(resolved, utms, true);
+       }
+     }
+
+     function init() {
+       ensureFbp();
+       updateLinks();
+       postEvent("PageView");
+
+       var tries = 0;
+       var t = setInterval(function () {
+         tries++;
+         updateLinks();
+         if (tries >= 10) clearInterval(t);
+       }, 1000);
+
+       if (window.MutationObserver) {
+         var mo = new MutationObserver(function () { updateLinks(); });
+         mo.observe(document.documentElement, { childList: true, subtree: true });
+       }
+     }
+
+     document.addEventListener("click", function (e) {
+       var el = e.target;
+       var a = el && el.closest ? el.closest("a") : null;
+       if (!a) return;
+
+       var href = a.getAttribute("href") || "";
+       if (!href) return;
+
+       var resolved = safeResolveUrl(href);
+       if (!looksLikeCheckout(resolved)) return;
+
+       var utms = buildUtms();
+       a.href = applyUtmsToUrl(resolved, utms, true);
+
+       postEvent("InitiateCheckout");
+     }, true);
+
+     if (document.readyState === "loading") {
+       document.addEventListener("DOMContentLoaded", init);
+     } else {
+       init();
+     }
+   })();
+   </script>
+
+   <style>
+       html { scroll-behavior: smooth; }
+       
+       body {
+           font-family: 'Inter', sans-serif;
+           background-color: #ffffff;
+           color: #111827;
+           margin: 0;
+           padding: 0;
+           overflow-x: hidden;
+           -webkit-font-smoothing: antialiased;
+       }
+
+       /* Cores adaptadas para Palha Italiana (Caramelo/Chocolate) */
+       .text-brand { color: #b45309; } /* Amber-700 / Caramelo Escuro */
+       .bg-brand { background-color: #b45309; }
+       
+       .card-light {
+           background-color: #ffffff;
+           border: 1px solid #e5e7eb;
+           border-radius: 12px;
+           box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+       }
+
+       .glow-image {
+           box-shadow: 0 15px 40px -10px rgba(180, 83, 9, 0.25);
+       }
+
+       /* Botão Pulsante Verde Mantido (Cor universal de Compra) */
+       .btn-primary {
+           background: linear-gradient(to right, #10b981, #059669);
+           color: white;
+           transition: all 0.2s ease-in-out;
+           box-shadow: 0 8px 25px -5px rgba(16, 185, 129, 0.4);
+       }
+       .btn-primary:active { transform: scale(0.96); }
+
+       @keyframes pulse-btn {
+           0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+           50% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+           100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+       }
+       .animate-pulse-btn { animation: pulse-btn 2.5s infinite; }
+
+       .fade-up {
+           opacity: 0;
+           transform: translateY(20px);
+           transition: opacity 0.6s ease-out, transform 0.6s ease-out;
+       }
+       .fade-up.is-visible {
+           opacity: 1;
+           transform: translateY(0);
+       }
+   </style>
+</head>
+<body class="w-full flex flex-col items-center">
+
+   <!-- POPUP DE UPSELL (Para o plano de 15,90) -->
+   <div id="upsellPopup" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+       <div class="bg-white rounded-2xl shadow-2xl max-w-[400px] w-full p-6 relative text-gray-900 border-t-8 border-[#10b981] animate-fade">
+           
+           <button onclick="closeUpsell()" class="absolute top-3 right-4 text-gray-400 hover:text-gray-700 transition text-2xl font-black leading-none" aria-label="Fechar">&times;</button>
+           
+           <div class="w-full bg-gray-200 rounded-full h-2 mb-4 mt-2">
+             <div class="bg-[#10b981] h-2 rounded-full w-[80%] animate-pulse"></div>
+           </div>
+           
+           <p class="text-red-500 font-black text-center text-[13px] uppercase tracking-widest mb-1">🚨 ESPERE! NÃO FECHE A PÁGINA</p>
+           <h3 class="text-2xl font-black text-gray-900 mb-3 leading-tight text-center">Você desbloqueou um<br><span class="text-brand">Desconto Secreto!</span></h3>
+           
+           <p class="text-[13px] text-gray-600 font-medium mb-5 leading-relaxed text-center">
+               Em vez de pagar R$ 9,90 apenas pelo PDF básico, que tal adicionar <strong class="text-[#10b981] bg-green-50 px-1 rounded">apenas R$ 5,00</strong> e levar o <strong class="text-gray-900">MÉTODO VIP COMPLETO</strong>? É um acréscimo ridículo para ter acesso a tudo:
+           </p>
+
+           <div class="bg-gray-50 border border-gray-200 p-4 rounded-xl text-left mb-5 space-y-2.5 shadow-inner">
+               <p class="flex items-start gap-2 text-[12px] font-bold text-gray-700"><span class="text-[#10b981] text-base leading-none">✔</span> <span>Vídeo Aulas (Ver na Prática)</span></p>
+               <p class="flex items-start gap-2 text-[12px] font-bold text-gray-700"><span class="text-[#10b981] text-base leading-none">✔</span> <span>Receitas base + variações</span></p>
+               <p class="flex items-start gap-2 text-[12px] font-bold text-gray-700"><span class="text-[#10b981] text-base leading-none">✔</span> <span>Todos os 9 Bônus Extras Inclusos</span></p>
+               <p class="flex items-start gap-2 text-[12px] font-bold text-gray-700"><span class="text-[#10b981] text-base leading-none">✔</span> <span>Acesso Vitalício ao Material</span></p>
+           </div>
+
+           <div class="flex items-center justify-center gap-3 mb-5">
+               <div class="text-right">
+                   <p class="text-[10px] text-gray-400 line-through font-bold uppercase tracking-wider">De R$ 197,00 por</p>
+                   <p class="text-3xl font-black text-[#10b981] leading-none">R$ 14<span class="text-xl">,90</span></p>
+               </div>
+           </div>
+           
+           <!-- ATENÇÃO: COLOQUE AQUI O SEU LINK DA YAMPI PARA O PRODUTO DE R$ 14,90 -->
+           <a href="https://confeiteira-mari.pay.yampi.com.br/r/AQE79N3KQE" class="animate-pulse-btn block w-full py-4 btn-primary font-black rounded-xl text-[1.05rem] uppercase text-center mb-3">
+               SIM! QUERO TUDO POR R$ 14,90
+           </a>
+           
+           <!-- LINK DO PRODUTO BÁSICO DE 9,90 -->
+           <a href="https://confeiteira-mari.pay.yampi.com.br/r/17JASRMC9L" class="block text-[11px] text-gray-400 font-medium hover:text-gray-600 transition text-center px-4 leading-tight underline">
+               Não, obrigado. Quero perder os vídeos e bônus e ficar só com o básico por R$ 9,90.
+           </a>
+       </div>
+   </div>
+
+   <!-- WRAPPER MOBILE FIRST -->
+   <div class="w-full max-w-[480px] flex flex-col items-center bg-white relative min-h-screen">
+
+       <!-- HERO SECTION -->
+       <div class="w-full flex flex-col items-center pt-10 pb-8 px-5 z-10 relative">
+           
+           <div class="flex items-center gap-2 mb-4 bg-orange-50 text-orange-600 px-3 py-1 rounded-full text-[10px] font-black tracking-widest uppercase border border-orange-100">
+               <span class="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+               Apenas 3 Vagas Disponíveis
+           </div>
+
+           <h1 class="text-[26px] md:text-[30px] font-black leading-[1.15] tracking-tight mb-4 text-center text-gray-900">
+               Pare de perder dinheiro. <span class="text-brand">Aprenda a fazer palhas que vendem sozinhas</span> e fature até R$300/dia.
+           </h1>
+           
+           <p class="text-[14px] text-gray-600 font-medium mb-6 text-center px-2">
+               São receitas passo a passo que já transformou donas de casa em empreendedoras e mesmo sem nunca ter feito um doce na vida.
+           </p>
+           
+           <!-- ÂNCORA DE PREÇO -->
+           <div class="mb-4 text-center">
+               <p class="text-[11px] text-gray-500 font-bold uppercase tracking-widest mb-1">Comece hoje por apenas...</p>
+               <p class="text-brand text-[2.5rem] font-black leading-none">R$ 9,90</p>
+               <p class="text-[11px] text-gray-500 mt-1">pagamento único com acesso imediato</p>
+           </div>
+
+           <button onclick="document.getElementById('checkoutSection').scrollIntoView({behavior: 'smooth'})" class="animate-pulse-btn w-full py-4 px-6 btn-primary font-black text-[1.1rem] rounded-xl uppercase tracking-wider mb-4">
+               QUERO COMEÇAR AGORA!
+           </button>
+
+           <div class="flex items-center gap-1 text-[11px] text-gray-500 font-bold mb-8">
+               <span class="text-[#10b981]">★★★★★</span> 4.9/5 • Acesso Vitalício
+           </div>
+
+           <!-- IMAGEM HERO (INSERIR A SUA AQUI) -->
+           <div class="relative w-full flex justify-center items-center mb-4">
+               <img src="paleta1.webp" fetchpriority="high" decoding="async" alt="Palha Italiana Artesanal" class="w-full h-auto rounded-xl shadow-md border border-gray-100">
+           </div>
+           
+           <p class="text-[12px] text-gray-500 italic mt-2 text-center">📸 Feita por aluna da nossa comunidade</p>
+       </div>
+
+       <!-- O SEGREDO DO MÉTODO (5 PASSOS) -->
+       <div class="w-full flex flex-col items-center px-5 pt-8 pb-8 fade-up text-center bg-gray-50 border-t border-gray-100">
+           <p class="text-brand text-[11px] font-black uppercase tracking-widest mb-2">SISTEMA SIMPLES</p>
+           <h2 class="text-2xl font-black leading-tight text-gray-900 mb-8">
+               O Método em <span class="text-brand">5 Passos</span><br>para a palha perfeita.
+           </h2>
+
+           <div class="w-full card-light p-5 flex flex-col gap-4 text-left">
+               <!-- Passo 1 -->
+               <div class="flex items-start gap-4 pb-4 border-b border-gray-100">
+                   <div class="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 mt-0.5">
+                       <span class="text-brand text-xs font-black">1</span>
+                   </div>
+                   <div>
+                       <h4 class="font-bold text-gray-900 text-[15px] mb-1">Receita base que não mela</h4>
+                       <p class="text-[13px] text-gray-600 leading-relaxed">Técnica universal que garante o corte perfeito em qualquer variação de sabor.</p>
+                   </div>
+               </div>
+               
+               <!-- Passo 2 -->
+               <div class="flex items-start gap-4 pb-4 border-b border-gray-100">
+                   <div class="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 mt-0.5">
+                       <span class="text-brand text-xs font-black">2</span>
+                   </div>
+                   <div>
+                       <h4 class="font-bold text-gray-900 text-[15px] mb-1">Ponto do chocolate ideal</h4>
+                       <p class="text-[13px] text-gray-600 leading-relaxed">Aprenda a consistência profissional garantida que derrete na boca.</p>
+                   </div>
+               </div>
+
+               <!-- Passo 3 -->
+               <div class="flex items-start gap-4 pb-4 border-b border-gray-100">
+                   <div class="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 mt-0.5">
+                       <span class="text-brand text-xs font-black">3</span>
+                   </div>
+                   <div>
+                       <h4 class="font-bold text-gray-900 text-[15px] mb-1">Técnica de corte preciso</h4>
+                       <p class="text-[13px] text-gray-600 leading-relaxed">Acabamento de confeitaria de luxo. Você vai vender suas palhas pela foto!</p>
+                   </div>
+               </div>
+
+               <!-- Passo 4 -->
+               <div class="flex items-start gap-4 pb-4 border-b border-gray-100">
+                   <div class="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 mt-0.5">
+                       <span class="text-brand text-xs font-black">4</span>
+                   </div>
+                   <div>
+                       <h4 class="font-bold text-gray-900 text-[15px] mb-1">Embalagem que vende</h4>
+                       <p class="text-[13px] text-gray-600 leading-relaxed">Apresentação irresistível e de baixo custo para valorizar o seu produto final.</p>
+                   </div>
+               </div>
+
+               <!-- Passo 5 -->
+               <div class="flex items-start gap-4">
+                   <div class="w-6 h-6 rounded-full bg-orange-50 border border-orange-200 flex items-center justify-center shrink-0 mt-0.5">
+                       <span class="text-brand text-xs font-black">5</span>
+                   </div>
+                   <div>
+                       <h4 class="font-bold text-gray-900 text-[15px] mb-1">Roteiro de venda em 7 dias</h4>
+                       <p class="text-[13px] text-gray-600 leading-relaxed">Estratégias validadas para você começar a lucrar rapidamente, transformando R$60 em R$200 por fornada.</p>
+                   </div>
+               </div>
+           </div>
+       </div>
+
+       <!-- SHOWCASE / VITRINE (GRID) -->
+       <div class="w-full flex flex-col items-center px-5 pt-8 pb-10 fade-up text-center">
+           <h2 class="text-[18px] md:text-[20px] font-black text-gray-900 uppercase tracking-tighter mb-0.5">
+               PALHAS QUE VENDEM SOZINHAS
+           </h2>
+           <h3 class="text-[14px] md:text-[15px] font-bold text-brand uppercase tracking-tight mb-6">
+               Descubra as receitas mais vendidas, testadas por +2.400 alunas!
+           </h3>
+           
+           <!-- Grid -->
+           <div class="grid grid-cols-2 gap-3 w-full">
+               <div class="relative rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                   <img src="paletagrid1.webp" loading="lazy" class="w-full aspect-square object-cover">
+                   <div class="absolute bottom-0 w-full bg-black/60 text-white text-[10px] font-bold py-1 backdrop-blur-sm">Tradicional</div>
+               </div>
+               <div class="relative rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                   <img src="paletagrid2.webp" loading="lazy" class="w-full aspect-square object-cover">
+                   <div class="absolute bottom-0 w-full bg-black/60 text-white text-[10px] font-bold py-1 backdrop-blur-sm">Ninho com Nutella</div>
+               </div>
+               <div class="relative rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                   <img src="paletagrid3.webp" loading="lazy" class="w-full aspect-square object-cover">
+                   <div class="absolute bottom-0 w-full bg-black/60 text-white text-[10px] font-bold py-1 backdrop-blur-sm">Pistache Premium</div>
+               </div>
+               <div class="relative rounded-2xl overflow-hidden shadow-sm border border-gray-100">
+                   <img src="paletagrid4.webp" loading="lazy" class="w-full aspect-square object-cover">
+                   <div class="absolute bottom-0 w-full bg-black/60 text-white text-[10px] font-bold py-1 backdrop-blur-sm">Red Velvet</div>
+               </div>
+           </div>
+       </div>
+
+       <!-- O QUE VAI RECEBER (ENTREGÁVEIS + EMPILHAMENTO DE BÔNUS) -->
+       <div class="w-full flex flex-col px-5 pt-8 pb-10 fade-up bg-gray-50 border-t border-gray-100">
+           
+           <!-- PRODUTO PRINCIPAL -->
+           <div class="bg-white rounded-2xl shadow-lg border border-gray-200 p-6 md:p-8 relative mt-2 mb-10">
+               <div class="absolute top-0 right-0 bg-[#fbbf24] text-gray-900 font-black px-4 py-1.5 rounded-bl-xl text-[10px] uppercase tracking-widest">ACESSO IMEDIATO</div>
+               
+               <h3 class="text-[18px] md:text-[20px] font-black text-center text-gray-900 mb-6 leading-tight mt-2">
+                   Tudo que você vai receber no<br>Método <span class="text-brand">Palha Perfeita VIP:</span>
+               </h3>
+               
+               <ul class="space-y-4 text-[13px] md:text-[14px] font-bold text-gray-700">
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Vídeo Aulas Passo a Passo na Prática</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Receitas da Massa Base + Variações Clássicas</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Técnica <strong class="text-brand">Anti-Mela</strong> Exclusiva</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Guia Completo de Corte Profissional</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Sabores Gourmet e Especiais (Zero Açúcar, Low Carb)</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Roteiro de Vendas em 7 Dias</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Acesso Vitalício ao Material</span></li>
+                   <li class="flex items-start gap-3"><span class="text-[#10b981] text-lg leading-none">✔</span> <span>Acesso ao Aplicativo Exclusivo</span></li>
+               </ul>
+               
+               <div class="mt-6 pt-5 border-t border-gray-100 text-center">
+                   <p class="text-[13px] md:text-[14px] font-black text-gray-900 uppercase italic tracking-tighter">TRANSFORME SUA COZINHA EM UMA<br><span class="text-[#10b981] text-[15px] md:text-[16px]">FÁBRICA DE DINHEIRO HOJE MESMO.</span></p>
+               </div>
+           </div>
+
+           <!-- EMPILHAMENTO DE BÔNUS (VALUE STACKING) -->
+           <div class="w-full text-center mb-4">
+               <span class="inline-block bg-red-100 text-red-600 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest mb-3">SOMENTE HOJE</span>
+               <h3 class="text-xl md:text-2xl font-black text-gray-900 leading-tight">
+                   Levando o Combo VIP hoje, você desbloqueia <span class="text-brand">9 Presentes Extras:</span>
+               </h3>
+           </div>
+
+           <!-- GRID DE BÔNUS (9 ITENS) -->
+           <div class="grid grid-cols-1 gap-3 w-full mt-4">
+               
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #1</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 97</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Vídeo Aula de Bolo Caseiro</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Aprenda a fazer massas perfeitas que derretem na boca e amplie suas vendas.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #2</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 67</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Receitas de Caldas Irresistíveis</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">12 caldas profissionais perfeitas para finalizar seus doces e agregar valor.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #3</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 67</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Receitas de Recheios Gourmet</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">15 opções de recheios super cremosos e exclusivos para diversificar sua produção.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #4</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 47</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">+30 Receitas Extras</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Uma variedade incrível que vai multiplicar seu cardápio e encantar qualquer cliente.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #5</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 67</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Calculadora de Precificação e Lucro</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Saiba exatamente quanto cobrar para não ter prejuízo. Nunca mais adivinhe o preço!</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #6</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 37</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Lista de Utensílios Premium</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">A relação completa de tudo o que você precisa para estruturar seu negócio gastando pouco.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #7</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 47</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Guia de Embalagens para Delivery</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Embalagens que encantam o cliente e garantem a integridade da sua palha no transporte.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #8</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 97</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Aula Canva: Crie sua Logomarca</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Crie uma identidade visual profissional 100% grátis e passe muito mais credibilidade.</p>
+               </div>
+
+               <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm relative pt-10">
+                   <div class="absolute top-3 left-4 bg-brand text-white text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider shadow-sm">BÔNUS #9</div>
+                   <div class="absolute top-3 right-4 text-[11px] text-gray-400 line-through font-bold">R$ 97</div>
+                   <h4 class="font-black text-[14px] text-gray-900 mb-1 leading-tight">Aula Canva: Catálogo de Vendas</h4>
+                   <p class="text-[12px] text-gray-600 leading-relaxed">Seu material de vendas pronto para usar. Envie pelo WhatsApp e veja os pedidos caírem.</p>
+               </div>
+
+           </div>
+           
+           <button onclick="document.getElementById('checkoutSection').scrollIntoView({behavior: 'smooth'})" class="w-full py-4 px-6 btn-primary font-black text-[1.1rem] rounded-xl uppercase tracking-wider mt-8 shadow-[0_8px_25px_-5px_rgba(16,185,129,0.5)]">
+               QUERO GARANTIR TODOS OS BÔNUS
+           </button>
+       </div>
+
+       <!-- PROVA SOCIAL / DEPOIMENTOS -->
+       <div class="w-full flex flex-col items-center px-5 pt-8 pb-10 fade-up text-center border-t border-gray-100">
+           <h2 class="text-2xl font-black leading-tight text-gray-900 mb-6">
+               Direto do <span class="text-brand">Grupo VIP!</span>
+           </h2>
+           <p class="text-[13px] text-gray-600 mb-6">Mais de 500 alunas já estão lucrando com nossas receitas de palhas.</p>
+           
+           <div class="w-full space-y-4 text-left">
+               <div class="card-light p-4">
+                   <div class="flex items-center gap-3 mb-2">
+                       <div class="w-8 h-8 rounded-full bg-[#b45309] text-white flex items-center justify-center font-bold text-sm shadow-sm">L</div>
+                       <p class="font-bold text-[13px] text-gray-900">Luana Carvalho</p>
+                   </div>
+                   <p class="text-[13px] text-gray-600 italic">"Gente, a minha primeira fornada de Palha Tradicional rendeu demais! O corte perfeito igual a professora ensinou. Já tenho 10 encomendas pra amanhã!"</p>
+               </div>
+
+               <div class="card-light p-4">
+                   <div class="flex items-center gap-3 mb-2">
+                       <div class="w-8 h-8 rounded-full bg-[#10b981] text-white flex items-center justify-center font-bold text-sm shadow-sm">M</div>
+                       <p class="font-bold text-[13px] text-gray-900">Maria Grancheff</p>
+                   </div>
+                   <p class="text-[13px] text-gray-600 italic">"Nunca fiz um doce na vida. Peguei o material hoje e já consegui um dinheiro rápido com as dicas do grupo. A técnica anti-mela é surreal."</p>
+               </div>
+               
+               <div class="card-light p-4">
+                   <div class="flex items-center gap-3 mb-2">
+                       <div class="w-8 h-8 rounded-full bg-[#3b82f6] text-white flex items-center justify-center font-bold text-sm shadow-sm">C</div>
+                       <p class="font-bold text-[13px] text-gray-900">Camila Santos</p>
+                   </div>
+                   <p class="text-[13px] text-gray-600 italic">"O catálogo do Canva que veio nos bônus mudou meu jogo. Mandei no grupo do condomínio e vendi 25 palhas em uma hora!"</p>
+               </div>
+           </div>
+       </div>
+
+       <!-- OFERTA FINAL (CHECKOUT) -->
+       <div id="checkoutSection" class="w-full flex flex-col px-5 pt-10 pb-12 fade-up border-t border-gray-200 bg-white">
+           <p class="text-brand text-[11px] font-black uppercase tracking-widest mb-2 text-center">DECISÃO FINAL</p>
+           <h2 class="text-2xl font-black leading-tight text-gray-900 mb-8 text-center">
+               Escolha seu plano e <br>comece a lucrar hoje.
+           </h2>
+
+           <!-- PLANO VIP (DESTAQUE) -->
+           <div class="bg-white border-2 border-[#10b981] rounded-2xl p-6 mb-6 relative shadow-2xl">
+               <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#10b981] text-white font-black px-4 py-1 rounded-full text-[10px] uppercase tracking-widest">MAIS VENDIDO</div>
+               
+               <h4 class="text-[18px] font-black text-center mt-2 text-gray-900">Combo Completo (VIP)</h4>
+               <p class="text-[11px] text-gray-500 text-center mt-1">Vídeo Aulas + Método Completo + 9 Bônus</p>
+               
+               <div class="flex justify-center my-4">
+                   <img src="paleta27.webp" alt="Pacote VIP Palha Italiana" class="h-[160px] w-auto transform hover:scale-105 transition-transform duration-300">
+               </div>
+               
+               <div class="space-y-3 my-5 font-medium text-[12px] text-gray-700">
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Vídeo Aulas Passo a Passo</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Técnica Anti-mela Exclusiva</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Guia de Corte Profissional</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Roteiro de Vendas em 7 Dias</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>TODOS OS 9 PRESENTES INCLUSOS</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Acesso Vitalício ao App</span></p>
+               </div>
+               
+               <div class="text-center mb-5 border-t border-gray-100 pt-4">
+                   <p class="text-[11px] text-gray-400 line-through font-bold mb-1">de R$ 197,00 por</p>
+                   <p class="text-[2.5rem] font-black text-gray-900 leading-none tracking-tighter">R$ 19<span class="text-3xl">,90</span></p>
+               </div>
+               
+               <a href="https://confeiteira-mari.pay.yampi.com.br/r/FRIA4GCN1E" class="block w-full py-4 btn-primary font-black rounded-xl text-center uppercase tracking-wider text-[1.1rem]">
+                   COMPRAR PLANO VIP
+               </a>
+           </div>
+
+           <!-- PLANO BÁSICO -->
+           <div class="card-light p-6 mb-8 border border-gray-200">
+               <h4 class="text-[16px] font-black text-center text-gray-800">Método Básico</h4>
+               <p class="text-[11px] text-gray-500 text-center mt-1">Apenas as 20 receitas em PDF</p>
+               
+               <div class="space-y-3 my-5 font-medium text-[12px] text-gray-500">
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>20 Receitas em PDF</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Acesso por 6 meses</span></p>
+                   <p class="flex items-start gap-2 text-gray-400 line-through"><span class="text-red-400 font-bold text-sm">✗</span> <span>Sem Vídeo Aulas na Prática</span></p>
+                   <p class="flex items-start gap-2 text-gray-400 line-through"><span class="text-red-400 font-bold text-sm">✗</span> <span>Sem os 9 Bônus Extras</span></p>
+                   <p class="flex items-start gap-2 text-gray-400 line-through"><span class="text-red-400 font-bold text-sm">✗</span> <span>Sem Suporte / Sem Acesso Vitalício</span></p>
+               </div>
+               
+               <div class="flex items-center justify-between gap-4 mt-4 border-t border-gray-100 pt-5">
+                   <div class="flex flex-col">
+                       <span class="text-[10px] text-gray-400 line-through">De R$ 29,00</span>
+                       <span class="text-[24px] font-black text-gray-900 tracking-tighter leading-none">R$ 9,90</span>
+                   </div>
+                   <!-- Dispara o Popup de Upsell -->
+                   <button onclick="showUpsellPopup()" class="px-4 py-3 bg-gray-50 text-gray-600 font-bold text-[11px] rounded-lg uppercase hover:bg-gray-100 transition-colors border border-gray-200 tracking-wider">COMPRAR BÁSICO</button>
+               </div>
+           </div>
+
+           <!-- GARANTIA -->
+           <div class="flex flex-col items-center justify-center text-center p-5 bg-green-50 border border-green-100 rounded-xl w-full">
+               <div class="text-green-500 text-3xl mb-2">🛡️</div>
+               <h4 class="font-black text-gray-900 text-[14px] mb-1">Garantia Incondicional de 14 Dias</h4>
+               <p class="text-[12px] text-gray-600 leading-snug">Você tem 14 dias para testar tudo. Se não gostar, basta pedir o reembolso e devolvemos 100% do seu dinheiro. O risco é todo nosso.</p>
+           </div>
+       </div>
+
+       <!-- FAQ INTERATIVO -->
+       <div class="w-full flex flex-col px-5 pt-8 pb-10 fade-up bg-gray-50 border-t border-gray-200">
+           <h2 class="text-xl font-black leading-tight text-gray-900 mb-6 text-center">
+               Perguntas <span class="text-brand">Frequentes</span>
+           </h2>
+
+           <div class="space-y-3 w-full">
+               <details class="group card-light p-4 cursor-pointer [&_summary::-webkit-details-marker]:hidden">
+                   <summary class="flex justify-between items-center font-bold text-[13px] text-gray-900 list-none">
+                       <span>Nunca fiz doce na vida, vou conseguir?</span>
+                       <span class="transition group-open:rotate-180 text-brand">▼</span>
+                   </summary>
+                   <p class="text-[12px] text-gray-600 mt-3 leading-snug border-t border-gray-100 pt-3">Com absoluta certeza! O nosso método foi criado passo a passo focado em iniciantes. A técnica da massa anti-mela é à prova de erros.</p>
+               </details>
+
+               <details class="group card-light p-4 cursor-pointer [&_summary::-webkit-details-marker]:hidden">
+                   <summary class="flex justify-between items-center font-bold text-[13px] text-gray-900 list-none">
+                       <span>Por que o preço é tão baixo?</span>
+                       <span class="transition group-open:rotate-180 text-brand">▼</span>
+                   </summary>
+                   <p class="text-[12px] text-gray-600 mt-3 leading-snug border-t border-gray-100 pt-3">Nosso objetivo é tornar essa profissão acessível para o maior número de mulheres possível, permitindo que você comece com o investimento de um café.</p>
+               </details>
+
+               <details class="group card-light p-4 cursor-pointer [&_summary::-webkit-details-marker]:hidden">
+                   <summary class="flex justify-between items-center font-bold text-[13px] text-gray-900 list-none">
+                       <span>Como recebo o acesso? É vitalício?</span>
+                       <span class="transition group-open:rotate-180 text-brand">▼</span>
+                   </summary>
+                   <p class="text-[12px] text-gray-600 mt-3 leading-snug border-t border-gray-100 pt-3">Ao finalizar a compra, você recebe o acesso imediatamente pelo WhatsApp e E-mail. Escolhendo o Plano VIP (R$ 19,90), seu acesso é 100% vitalício e com direito a todas as atualizações.</p>
+               </details>
+               
+               <details class="group card-light p-4 cursor-pointer [&_summary::-webkit-details-marker]:hidden">
+                   <summary class="flex justify-between items-center font-bold text-[13px] text-gray-900 list-none">
+                       <span>Quais formas de pagamento são aceitas?</span>
+                       <span class="transition group-open:rotate-180 text-brand">▼</span>
+                   </summary>
+                   <p class="text-[12px] text-gray-600 mt-3 leading-snug border-t border-gray-100 pt-3">Aceitamos PIX (liberação na mesma hora), Cartão de Crédito e Boleto Bancário.</p>
+               </details>
+           </div>
+       </div>
+
+       <!-- FINAL CTA & FOOTER (LIGHT MODE - CLEAN) -->
+       <div class="w-full flex flex-col items-center bg-white text-gray-900 pt-12 pb-8 px-6 border-t border-gray-200">
+           
+           <div class="flex items-center gap-3 mb-6">
+               <div class="bg-[#ef4444] text-white text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest flex items-center gap-1.5 shadow-sm">
+                   <span>🔥</span> ÚLTIMAS VAGAS COM DESCONTO
+               </div>
+           </div>
+
+           <h2 class="text-[28px] md:text-[32px] font-black text-center leading-[1.1] mb-5">
+               O preço de <span class="text-[#10b981]">R$ 9,90</span> é por tempo limitado!
+           </h2>
+
+           <p class="text-[14px] md:text-[15px] text-gray-600 font-medium text-center mb-8 px-2 leading-relaxed">
+               Quando o cronômetro das vagas zerar, o valor volta para <span class="line-through text-gray-400">R$ 29,00</span>. Garanta agora!
+           </p>
+
+           <button onclick="document.getElementById('checkoutSection').scrollIntoView({behavior: 'smooth'})" class="animate-pulse-btn w-full py-5 btn-primary font-black text-[1.1rem] rounded-xl uppercase tracking-wider mb-6">
+               GARANTIR MINHA VAGA POR R$ 9,90
+           </button>
+
+           <div class="flex flex-col items-center gap-2 text-[11px] text-gray-500 mb-10 text-center font-medium">
+               <p class="flex items-center gap-1.5"><span class="text-[#10b981] text-sm">🛡️</span> Garantia de 14 dias • Pagamento 100% Seguro</p>
+               <p>Pix e Cartão • Receba pelo WhatsApp • Suporte incluso</p>
+           </div>
+
+           <div class="w-full h-px bg-gray-200 mb-8"></div>
+
+           <!-- Footer Links -->
+           <div class="w-full flex flex-col gap-8 text-left mb-8">
+               <div>
+                   <p class="text-[12px] text-gray-500 font-medium leading-relaxed pr-4">O segredo das palhas perfeitas agora na palma da sua mão.</p>
+               </div>
+               
+               <div class="grid grid-cols-2 gap-4 w-full">
+                   <div class="flex flex-col gap-3">
+                       <h4 class="text-gray-800 font-black text-[13px] mb-1">Links Úteis</h4>
+                       <a href="#" class="text-[12px] text-gray-500 font-medium hover:text-gray-800 transition">Termos de Uso</a>
+                       <a href="#" class="text-[12px] text-gray-500 font-medium hover:text-gray-800 transition">Política de Privacidade</a>
+                       <a href="#" class="text-[12px] text-gray-500 font-medium hover:text-gray-800 transition">Contato</a>
+                   </div>
+
+                   <div class="flex flex-col gap-3">
+                       <h4 class="text-gray-800 font-black text-[13px] mb-1">Contato</h4>
+                       <p class="text-[11px] text-gray-500 font-medium break-all flex items-start gap-2"><span class="mt-0.5">✉️</span> suporte@palhaperfeita.com</p>
+                   </div>
+               </div>
+           </div>
+
+           <div class="w-full h-px bg-gray-200 mb-6"></div>
+
+           <!-- Missão & Copyright -->
+           <div class="text-center w-full">
+               <p class="text-[10px] text-gray-400 font-medium">
+                   © 2026 Palha Perfeita - Venda Todo Dia. Todos os direitos reservados.
+               </p>
+           </div>
+       </div>
+
+   </div>
+
+   <script>
+       function showUpsellPopup() { document.getElementById('upsellPopup').classList.remove('hidden'); }
+       function closeUpsell() { document.getElementById('upsellPopup').classList.add('hidden'); }
+
+       document.addEventListener('DOMContentLoaded', () => { 
+           const observer = new IntersectionObserver((entries) => {
+               entries.forEach(entry => {
+                   if (entry.isIntersecting) {
+                       entry.target.classList.add('is-visible');
+                       observer.unobserve(entry.target); 
+                   }
+               });
+           }, { threshold: 0.10 });
+
+           document.querySelectorAll('.fade-up').forEach(el => {
+               observer.observe(el);
+           });
+       });
+   </script>
+</body>
+</html>
