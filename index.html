@@ -15,220 +15,220 @@
    <link href="https://fonts.googleapis.com/css2?family=Inter:ital,wght@0,400;0,600;0,700;0,900;1,700;1,900&family=Playfair+Display:ital,wght@1,600;1,700;1,800&display=swap" rel="stylesheet">
 
    <script>
-   (function () {
-     "use strict";
+(function () {
+  "use strict";
 
-     var API_BASE = "https://brain-saas.vercel.app";
-     var PIXEL_PUBLIC_KEY = "px_D7XBCpYqp6dO4nTz";
-     var prefix = ["https://lastlink.com","https://kirvano.com","https://pay.kirvano.com","https://checkout.kirvano.com","pay.yampi.com.br"];
-     var TRACK_URL = API_BASE.replace(/\/$/, "") + "/api/track";
+  var API_BASE = "https://brain-saas.vercel.app";
+  var PIXEL_PUBLIC_KEY = "px_D7XBCpYqp6dO4nTz";
+  var prefix = ["https://lastlink.com","https://kirvano.com","https://pay.kirvano.com","https://checkout.kirvano.com","pay.yampi.com.br"];
+  var TRACK_URL = API_BASE.replace(/\/$/, "") + "/api/track";
 
-     function getCookie(name) {
-       var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
-       return match ? decodeURIComponent(match[2]) : null;
-     }
+  function getCookie(name) {
+    var match = document.cookie.match(new RegExp("(^| )" + name + "=([^;]+)"));
+    return match ? decodeURIComponent(match[2]) : null;
+  }
 
-     function setCookie(name, value, days) {
-       var d = new Date();
-       d.setTime(d.getTime() + (days || 365) * 24 * 60 * 60 * 1000);
-       document.cookie =
-         name + "=" + encodeURIComponent(value) +
-         "; path=/; expires=" + d.toUTCString() + "; SameSite=Lax";
-     }
+  function setCookie(name, value, days) {
+    var d = new Date();
+    d.setTime(d.getTime() + (days || 365) * 24 * 60 * 60 * 1000);
+    document.cookie =
+      name + "=" + encodeURIComponent(value) +
+      "; path=/; expires=" + d.toUTCString() + "; SameSite=Lax";
+  }
 
-     function uuid() {
-       if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
-       return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
-         var r = (Math.random() * 16) | 0;
-         var v = c === "x" ? r : (r & 0x3) | 0x8;
-         return v.toString(16);
-       });
-     }
+  function uuid() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0;
+      var v = c === "x" ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+  }
 
-     function getOrCreateSid() {
-       var sid = getCookie("mcapi_sid");
-       if (!sid) {
-         sid = uuid();
-         setCookie("mcapi_sid", sid, 365);
-       }
-       return sid;
-     }
+  function getOrCreateSid() {
+    var sid = getCookie("mcapi_sid");
+    if (!sid) {
+      sid = uuid();
+      setCookie("mcapi_sid", sid, 365);
+    }
+    return sid;
+  }
 
-     function getQueryParam(name) {
-       try {
-         return new URL(location.href).searchParams.get(name);
-       } catch (e) {
-         return null;
-       }
-     }
+  function getQueryParam(name) {
+    try {
+      return new URL(location.href).searchParams.get(name);
+    } catch (e) {
+      return null;
+    }
+  }
 
-     function ensureFbp() {
-       var existing = getCookie("_fbp");
-       if (existing) return existing;
+  function ensureFbp() {
+    var existing = getCookie("_fbp");
+    if (existing) return existing;
 
-       var fbp = "fb.1." + Date.now() + "." + Math.floor(Math.random() * 1e16);
-       setCookie("_fbp", fbp, 90);
-       return fbp;
-     }
+    var fbp = "fb.1." + Date.now() + "." + Math.floor(Math.random() * 1e16);
+    setCookie("_fbp", fbp, 90);
+    return fbp;
+  }
 
-     function ensureFbc() {
-       var existing = getCookie("_fbc");
-       if (existing) return existing;
+  function ensureFbc() {
+    var existing = getCookie("_fbc");
+    if (existing) return existing;
 
-       var fbclid = getQueryParam("fbclid");
-       if (!fbclid) return null;
+    var fbclid = getQueryParam("fbclid");
+    if (!fbclid) return null;
 
-       var fbc = "fb.1." + Date.now() + "." + fbclid;
-       setCookie("_fbc", fbc, 90);
-       return fbc;
-     }
+    var fbc = "fb.1." + Date.now() + "." + fbclid;
+    setCookie("_fbc", fbc, 90);
+    return fbc;
+  }
 
-     function safeResolveUrl(href) {
-       var resolved = href;
-       try { resolved = new URL(href, location.href).href; } catch (e) {}
-       return resolved;
-     }
+  function safeResolveUrl(href) {
+    var resolved = href;
+    try { resolved = new URL(href, location.href).href; } catch (e) {}
+    return resolved;
+  }
 
-     function looksLikeCheckout(url) {
-       url = String(url || "");
-       for (var j = 0; j < prefix.length; j++) {
-         if (url.indexOf(prefix[j]) !== -1) return true;
-       }
-       var low = url.toLowerCase();
-       if (low.indexOf("checkout") !== -1 || low.indexOf("pay") !== -1 || low.indexOf("payment") !== -1) return true;
-       return false;
-     }
+  function looksLikeCheckout(url) {
+    url = String(url || "");
+    for (var j = 0; j < prefix.length; j++) {
+      if (url.indexOf(prefix[j]) !== -1) return true;
+    }
+    var low = url.toLowerCase();
+    if (low.indexOf("checkout") !== -1 || low.indexOf("pay") !== -1 || low.indexOf("payment") !== -1) return true;
+    return false;
+  }
 
-     function buildUtms() {
-       var r = new URL(location.href);
-       var sid = getOrCreateSid();
-       var out = {};
+  function buildUtms() {
+    var r = new URL(location.href);
+    var sid = getOrCreateSid();
+    var out = {};
 
-       out.utm_source = r.searchParams.get("utm_source") || "direto";
-       out.utm_term = "sid:" + sid;
+    out.utm_source = r.searchParams.get("utm_source") || "direto";
+    out.utm_term = "sid:" + sid;
 
-       if (r.searchParams.get("utm_medium")) out.utm_medium = r.searchParams.get("utm_medium");
-       if (r.searchParams.get("utm_campaign")) out.utm_campaign = r.searchParams.get("utm_campaign");
-       if (r.searchParams.get("utm_content")) out.utm_content = r.searchParams.get("utm_content");
-       if (r.searchParams.get("fbclid")) out.fbclid = r.searchParams.get("fbclid");
+    if (r.searchParams.get("utm_medium")) out.utm_medium = r.searchParams.get("utm_medium");
+    if (r.searchParams.get("utm_campaign")) out.utm_campaign = r.searchParams.get("utm_campaign");
+    if (r.searchParams.get("utm_content")) out.utm_content = r.searchParams.get("utm_content");
+    if (r.searchParams.get("fbclid")) out.fbclid = r.searchParams.get("fbclid");
 
-       return out;
-     }
+    return out;
+  }
 
-     function applyUtmsToUrl(resolvedUrl, utms, forceUtmTerm) {
-       try {
-         var u = new URL(resolvedUrl);
+  function applyUtmsToUrl(resolvedUrl, utms, forceUtmTerm) {
+    try {
+      var u = new URL(resolvedUrl);
 
-         for (var key in utms) {
-           if (!utms.hasOwnProperty(key)) continue;
-           if (!utms[key]) continue;
+      for (var key in utms) {
+        if (!utms.hasOwnProperty(key)) continue;
+        if (!utms[key]) continue;
 
-           if (key === "utm_term") {
-             if (forceUtmTerm) u.searchParams.set("utm_term", utms.utm_term);
-             else if (!u.searchParams.get("utm_term")) u.searchParams.set("utm_term", utms.utm_term);
-             continue;
-           }
+        if (key === "utm_term") {
+          if (forceUtmTerm) u.searchParams.set("utm_term", utms.utm_term);
+          else if (!u.searchParams.get("utm_term")) u.searchParams.set("utm_term", utms.utm_term);
+          continue;
+        }
 
-           if (!u.searchParams.get(key)) u.searchParams.set(key, utms[key]);
-         }
+        if (!u.searchParams.get(key)) u.searchParams.set(key, utms[key]);
+      }
 
-         return u.toString();
-       } catch (e) {
-         return resolvedUrl;
-       }
-     }
+      return u.toString();
+    } catch (e) {
+      return resolvedUrl;
+    }
+  }
 
-     function sendEvent(payload) {
-       try {
-         if (navigator.sendBeacon) {
-           var blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-           navigator.sendBeacon(TRACK_URL, blob);
-           return;
-         }
-       } catch (e) {}
+  function sendEvent(payload) {
+    try {
+      if (navigator.sendBeacon) {
+        var blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+        navigator.sendBeacon(TRACK_URL, blob);
+        return;
+      }
+    } catch (e) {}
 
-       fetch(TRACK_URL, {
-         method: "POST",
-         mode: "cors",
-         headers: { "Content-Type": "application/json" },
-         body: JSON.stringify(payload),
-         keepalive: true
-       }).catch(function(){});
-     }
+    fetch(TRACK_URL, {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true
+    }).catch(function(){});
+  }
 
-     function postEvent(eventName) {
-       var sid = getOrCreateSid();
+  function postEvent(eventName) {
+    var sid = getOrCreateSid();
 
-       var payload = {
-         pixel_id: PIXEL_PUBLIC_KEY,
-         sid: sid,
-         event: eventName,
-         event_id: eventName + "_" + sid + "_" + Date.now(),
-         url: location.href,
-         utm: buildUtms(),
-         fbp: ensureFbp(),
-         fbc: ensureFbc()
-       };
+    var payload = {
+      pixel_id: PIXEL_PUBLIC_KEY,
+      sid: sid,
+      event: eventName,
+      event_id: eventName + "_" + sid + "_" + Date.now(),
+      url: location.href,
+      utm: buildUtms(),
+      fbp: ensureFbp(),
+      fbc: ensureFbc()
+    };
 
-       sendEvent(payload);
-     }
+    sendEvent(payload);
+  }
 
-     function updateLinks() {
-       var utms = buildUtms();
-       var anchors = document.querySelectorAll("a[href]");
-       for (var i = 0; i < anchors.length; i++) {
-         var a = anchors[i];
-         var href = a.getAttribute("href") || "";
-         if (!href) continue;
+  function updateLinks() {
+    var utms = buildUtms();
+    var anchors = document.querySelectorAll("a[href]");
+    for (var i = 0; i < anchors.length; i++) {
+      var a = anchors[i];
+      var href = a.getAttribute("href") || "";
+      if (!href) continue;
 
-         var resolved = safeResolveUrl(href);
-         if (!looksLikeCheckout(resolved)) continue;
+      var resolved = safeResolveUrl(href);
+      if (!looksLikeCheckout(resolved)) continue;
 
-         a.href = applyUtmsToUrl(resolved, utms, true);
-       }
-     }
+      a.href = applyUtmsToUrl(resolved, utms, true);
+    }
+  }
 
-     function init() {
-       ensureFbp();
-       updateLinks();
-       postEvent("PageView");
+  function init() {
+    ensureFbp();
+    updateLinks();
+    postEvent("PageView");
 
-       var tries = 0;
-       var t = setInterval(function () {
-         tries++;
-         updateLinks();
-         if (tries >= 10) clearInterval(t);
-       }, 1000);
+    var tries = 0;
+    var t = setInterval(function () {
+      tries++;
+      updateLinks();
+      if (tries >= 10) clearInterval(t);
+    }, 1000);
 
-       if (window.MutationObserver) {
-         var mo = new MutationObserver(function () { updateLinks(); });
-         mo.observe(document.documentElement, { childList: true, subtree: true });
-       }
-     }
+    if (window.MutationObserver) {
+      var mo = new MutationObserver(function () { updateLinks(); });
+      mo.observe(document.documentElement, { childList: true, subtree: true });
+    }
+  }
 
-     document.addEventListener("click", function (e) {
-       var el = e.target;
-       var a = el && el.closest ? el.closest("a") : null;
-       if (!a) return;
+  document.addEventListener("click", function (e) {
+    var el = e.target;
+    var a = el && el.closest ? el.closest("a") : null;
+    if (!a) return;
 
-       var href = a.getAttribute("href") || "";
-       if (!href) return;
+    var href = a.getAttribute("href") || "";
+    if (!href) return;
 
-       var resolved = safeResolveUrl(href);
-       if (!looksLikeCheckout(resolved)) return;
+    var resolved = safeResolveUrl(href);
+    if (!looksLikeCheckout(resolved)) return;
 
-       var utms = buildUtms();
-       a.href = applyUtmsToUrl(resolved, utms, true);
+    var utms = buildUtms();
+    a.href = applyUtmsToUrl(resolved, utms, true);
 
-       postEvent("InitiateCheckout");
-     }, true);
+    postEvent("InitiateCheckout");
+  }, true);
 
-     if (document.readyState === "loading") {
-       document.addEventListener("DOMContentLoaded", init);
-     } else {
-       init();
-     }
-   })();
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
    </script>
 
    <style>
@@ -320,12 +320,12 @@
            </div>
            
            <!-- ATENÇÃO: COLOQUE AQUI O SEU LINK DA YAMPI PARA O PRODUTO DE R$ 14,90 -->
-           <a href="https://confeiteira-mari.pay.yampi.com.br/r/AQE79N3KQE" class="animate-pulse-btn block w-full py-4 btn-primary font-black rounded-xl text-[1.05rem] uppercase text-center mb-3">
+           <a href="https://confeiteira-mari.pay.yampi.com.br/r/I39BWWOZ67" class="animate-pulse-btn block w-full py-4 btn-primary font-black rounded-xl text-[1.05rem] uppercase text-center mb-3">
                SIM! QUERO TUDO POR R$ 14,90
            </a>
            
            <!-- LINK DO PRODUTO BÁSICO DE 9,90 -->
-           <a href="https://confeiteira-mari.pay.yampi.com.br/r/17JASRMC9L" class="block text-[11px] text-gray-400 font-medium hover:text-gray-600 transition text-center px-4 leading-tight underline">
+           <a href="https://confeiteira-mari.pay.yampi.com.br/r/5G3V146OQQ" class="block text-[11px] text-gray-400 font-medium hover:text-gray-600 transition text-center px-4 leading-tight underline">
                Não, obrigado. Quero perder os vídeos e bônus e ficar só com o básico por R$ 9,90.
            </a>
        </div>
@@ -617,30 +617,47 @@
            <div class="bg-white border-2 border-[#10b981] rounded-2xl p-6 mb-6 relative shadow-2xl">
                <div class="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#10b981] text-white font-black px-4 py-1 rounded-full text-[10px] uppercase tracking-widest">MAIS VENDIDO</div>
                
-               <h4 class="text-[18px] font-black text-center mt-2 text-gray-900">Combo Completo (VIP)</h4>
-               <p class="text-[11px] text-gray-500 text-center mt-1">Vídeo Aulas + Método Completo + 9 Bônus</p>
+               <h4 class="text-[19px] md:text-[21px] font-black text-left mt-2 text-gray-900 leading-tight">Combo Completo + 9 Bônus</h4>
+               <p class="text-[12px] text-gray-600 text-left mt-1 font-medium">Método completo + todos os bônus exclusivos</p>
                
-               <div class="flex justify-center my-4">
-                   <img src="paleta27.webp" alt="Pacote VIP Palha Italiana" class="h-[160px] w-auto transform hover:scale-105 transition-transform duration-300">
+               <div class="flex items-end justify-start gap-2 mt-5 mb-1">
+                   <span class="text-[16px] text-gray-400 line-through font-black mb-1.5">R$ 197</span>
+                   <span class="text-[3rem] font-black text-brand leading-none tracking-tighter">R$ 19<span class="text-[1.8rem]">,90</span></span>
+               </div>
+
+               <p class="text-left text-[11px] font-bold text-gray-500 mb-6">
+                   Pagamento único • Acesso vitalício
+               </p>
+               
+               <!-- LISTA PRINCIPAL (MÉTODO) -->
+               <div class="space-y-3 mb-6 font-medium text-[13px] text-gray-800">
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span><strong>Método Palha Perfeita completo</strong></span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span>Vídeo aulas passo a passo</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span>Receitas base + variações</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span>Técnica anti-mela exclusiva</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span>Guia de corte profissional</span></p>
+                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-[15px] mt-[-1px]">✔</span> <span>Roteiro de vendas em 7 dias</span></p>
+               </div>
+
+               <!-- CAIXA DE BÔNUS (O "VALUE STACKING") -->
+               <div class="bg-orange-50/50 border border-orange-200 rounded-xl p-4 mb-5">
+                   <h5 class="text-brand font-black text-[13px] uppercase tracking-widest mb-3">+ 9 BÔNUS INCLUSOS</h5>
+                   
+                   <div class="space-y-2.5 font-medium text-[12px] text-gray-700">
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Vídeo Aula de Bolo Caseiro</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Receitas de Caldas Irresistíveis</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>+30 Receitas Bônus Exclusivas</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Calculadora de Precificação e Lucro</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Lista de Utensílios Premium</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Guia de Embalagens para Delivery</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Audiobook pra ouvir enquanto cozinha</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Aula de Canva: Crie sua Logomarca</span></p>
+                       <p class="flex items-start gap-2"><span class="text-brand font-bold text-sm mt-[-2px]">✔</span> <span>Aula de Canva: Catálogo de Vendas</span></p>
+                   </div>
                </div>
                
-               <div class="space-y-3 my-5 font-medium text-[12px] text-gray-700">
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Vídeo Aulas Passo a Passo</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>+10 Receitas Tradicionais e Gourmet</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Técnica Anti-mela Exclusiva</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Guia de Corte Profissional</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Roteiro de Vendas em 7 Dias</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>TODOS OS 9 PRESENTES INCLUSOS</span></p>
-                   <p class="flex items-start gap-2"><span class="text-[#10b981] font-bold text-sm">✔</span> <span>Acesso Vitalício ao App</span></p>
-               </div>
-               
-               <div class="text-center mb-5 border-t border-gray-100 pt-4">
-                   <p class="text-[11px] text-gray-400 line-through font-bold mb-1">de R$ 197,00 por</p>
-                   <p class="text-[2.5rem] font-black text-gray-900 leading-none tracking-tighter">R$ 19<span class="text-3xl">,90</span></p>
-               </div>
-               
-               <a href="https://confeiteira-mari.pay.yampi.com.br/r/FRIA4GCN1E" class="block w-full py-4 btn-primary font-black rounded-xl text-center uppercase tracking-wider text-[1.1rem]">
-                   COMPRAR PLANO VIP
+               <a href="https://confeiteira-mari.pay.yampi.com.br/r/IGPAFNO3TM" class="block w-full py-4 btn-primary font-black rounded-xl text-center uppercase tracking-wider text-[1.05rem]">
+                   QUERO O COMBO POR R$ 19,90
                </a>
            </div>
 
